@@ -389,12 +389,27 @@ function parseDate(raw){
   if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.substring(0,10);return s;
 }
 
+function parseAmount(raw){
+  // Handle European format: 1.234,56 → remove thousand dots, replace decimal comma
+  const s=String(raw||'0').trim().replace(/\s/g,'');
+  if(s===''||s==='-')return 0;
+  if(s.includes(',')&&s.includes('.')){
+    // Both separators: dot=thousands, comma=decimal (e.g. 6.492,50)
+    return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
+  }else if(s.includes(',')){
+    // Only comma: decimal separator (e.g. 492,50)
+    return parseFloat(s.replace(',','.'))||0;
+  }else{
+    return parseFloat(s)||0;
+  }
+}
+
 function parseING(rows){
   const acct=extractAccount(rows,'ING');
   let hi=-1;for(let i=0;i<rows.length;i++){const r=rows[i].map(c=>String(c||'').toUpperCase());if(r.some(c=>c.includes('F. VALOR'))){hi=i;break;}}
   if(hi<0)return[];const txns=[];
-  for(let i=hi+1;i<rows.length;i++){const r=rows[i];if(!r[0]&&!r[3])continue;const amt=parseFloat(String(r[5]||'0').replace(',','.'))||0;if(amt===0&&!r[3])continue;
-    txns.push({id:'',date:parseDate(r[0]),fechaContable:parseDate(r[0]),category:String(r[1]||'').trim(),subcategory:String(r[2]||'').trim(),description:String(r[3]||'').trim(),amount:amt,balance:parseFloat(String(r[6]||'0').replace(',','.'))||0,bank:'ING',account:acct,aiCategorized:false,notes:'',checked:true});}
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i];if(!r[0]&&!r[3])continue;const amt=parseAmount(r[5]);if(amt===0&&!r[3])continue;
+    txns.push({id:'',date:parseDate(r[0]),fechaContable:parseDate(r[0]),category:String(r[1]||'').trim(),subcategory:String(r[2]||'').trim(),description:String(r[3]||'').trim(),amount:amt,balance:parseAmount(r[6]),bank:'ING',account:acct,aiCategorized:false,notes:'',checked:true});}
   return txns;
 }
 
@@ -402,8 +417,8 @@ function parseSabadell(rows){
   const acct=extractAccount(rows,'SABADELL');
   let hi=-1;for(let i=0;i<rows.length;i++){const r=rows[i].map(c=>String(c||'').toLowerCase());if(r.some(c=>c.includes('f. operativa')||c.includes('concepto'))){hi=i;break;}}
   if(hi<0)return[];const txns=[];
-  for(let i=hi+1;i<rows.length;i++){const r=rows[i];if(!r[0]&&!r[1])continue;const amt=parseFloat(String(r[3]||'0').replace(',','.'))||0;if(amt===0&&!r[1])continue;
-    txns.push({id:'',date:parseDate(r[0]),fechaContable:parseDate(r[0]),category:'',subcategory:'',description:String(r[1]||'').trim(),amount:amt,balance:parseFloat(String(r[4]||'0').replace(',','.'))||0,bank:'SABADELL',account:acct,aiCategorized:false,notes:'',checked:true});}
+  for(let i=hi+1;i<rows.length;i++){const r=rows[i];if(!r[0]&&!r[1])continue;const amt=parseAmount(r[3]);if(amt===0&&!r[1])continue;
+    txns.push({id:'',date:parseDate(r[0]),fechaContable:parseDate(r[0]),category:'',subcategory:'',description:String(r[1]||'').trim(),amount:amt,balance:parseAmount(r[4]),bank:'SABADELL',account:acct,aiCategorized:false,notes:'',checked:true});}
   return txns;
 }
 
@@ -513,8 +528,8 @@ function readFilters(){
   S.filters.showUnchecked=document.getElementById('showUnchecked')?.checked!==false;
 }
 
-function onFilterChange(){readFilters();renderTable();renderStats();}
-function onSearchInput(){S.filters.search=document.getElementById('searchBox')?.value||'';renderTable();}
+function onFilterChange(){readFilters();renderTable();renderStats();renderCharts(filtered());}
+function onSearchInput(){S.filters.search=document.getElementById('searchBox')?.value||'';renderTable();renderStats();renderCharts(filtered());}
 
 function filtered(){
   return S.transactions.filter(t=>{
