@@ -337,11 +337,29 @@ function clearAllData(){if(!confirm('¿Seguro que quieres borrar TODOS los datos
 function detectBank(rows){const flat=rows.slice(0,12).flat().map(c=>String(c||'').toLowerCase()).join(' ');if(flat.includes('categoría')||flat.includes('subcategoría'))return'ING';if(flat.includes('f. operativa')||flat.includes('concepto'))return'SABADELL';return null;}
 
 function extractAccount(rows,bank){
-  for(const row of rows.slice(0,15)){
+  // Pass 1: find label cell, read adjacent cells for the account value
+  for(const row of rows.slice(0,20)){
+    for(let i=0;i<row.length;i++){
+      const s=String(row[i]||'').trim();
+      const sl=s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const isIngLabel=sl.includes('numero de cuenta')||sl.includes('n de cuenta');
+      const isSabLabel=sl==='cuenta:'||sl.startsWith('cuenta:')||sl==='cuenta';
+      if((bank==='ING'&&isIngLabel)||(bank==='SABADELL'&&isSabLabel)){
+        for(let j=i+1;j<Math.min(i+5,row.length);j++){
+          const v=String(row[j]||'').replace(/\s/g,'');
+          if(v.length>=4)return v.slice(-4);
+        }
+        const after=(s.split(':')[1]||'').replace(/\s/g,'');
+        if(after.length>=4)return after.slice(-4);
+      }
+    }
+  }
+  // Pass 2: pattern match directly on cell content
+  for(const row of rows.slice(0,20)){
     for(const cell of row){
-      const s=String(cell||'');
-      if(bank==='ING'&&s.match(/^\d{4}\s\d{4}/))return s.replace(/\s/g,'').slice(-4);
-      if(bank==='SABADELL'&&s.match(/^ES\d{2}/))return s.replace(/\s/g,'').slice(-4);
+      const s=String(cell||'').trim();
+      if(bank==='SABADELL'&&/^ES\d{2}/i.test(s))return s.replace(/\s/g,'').slice(-4);
+      if(bank==='ING'&&/^\d{4}[\s\d]{10,}$/.test(s))return s.replace(/\s/g,'').slice(-4);
     }
   }
   return '????';
