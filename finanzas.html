@@ -471,11 +471,11 @@ Movimientos:\n${items}\nResponde ÚNICAMENTE con JSON:\n[{"i":0,"cat":"categorí
   el.style.display='none';await ghSave();toast('Categorización completada y guardada');
 }
 
-// ─── INLINE EDITS ─────────────────────────────────────────────────────────────
-function updateCategory(id,val){const t=S.transactions.find(x=>x.id===id);if(t){t.category=val;t.aiCategorized=false;markDirty();}}
-function updateFechaContable(id,val){const t=S.transactions.find(x=>x.id===id);if(t){t.fechaContable=val;markDirty();}}
-function updateNotes(id,val){const t=S.transactions.find(x=>x.id===id);if(t){t.notes=val;markDirty();}}
-function updateChecked(id,val){const t=S.transactions.find(x=>x.id===id);if(t){t.checked=val;markDirty();const row=document.querySelector(`tr[data-id="${id}"]`);if(row)row.classList.toggle('unchecked-row',!val);}}
+// ─── INLINE EDITS (por índice en S.transactions, evita colisiones de ID) ──────
+function updateCategory(idx,val){const t=S.transactions[idx];if(t){t.category=val;t.aiCategorized=false;markDirty();}}
+function updateFechaContable(idx,val){const t=S.transactions[idx];if(t){t.fechaContable=val;markDirty();}}
+function updateNotes(idx,val){const t=S.transactions[idx];if(t){t.notes=val;markDirty();}}
+function updateChecked(idx,val){const t=S.transactions[idx];if(t){t.checked=val;markDirty();const row=document.querySelector(`tr[data-idx="${idx}"]`);if(row)row.classList.toggle('unchecked-row',!val);}}
 
 // ─── MULTISELECT CATEGORY ─────────────────────────────────────────────────────
 function buildCatPanel(){
@@ -583,16 +583,18 @@ function renderTable(){
   if(!tbodyEl)return;
   const txns=filtered();
   if(countEl)countEl.textContent=`${txns.length} resultado${txns.length!==1?'s':''}`;
-  tbodyEl.innerHTML=txns.slice(0,400).map(t=>`<tr data-id="${t.id}" class="${t.checked===false?'unchecked-row':''}">
-    <td class="td-check"><input type="checkbox" ${t.checked!==false?'checked':''} onchange="updateChecked('${t.id}',this.checked)"></td>
+  tbodyEl.innerHTML=txns.slice(0,400).map(t=>{
+    const idx=S.transactions.indexOf(t);
+    return`<tr data-idx="${idx}" class="${t.checked===false?'unchecked-row':''}">
+    <td class="td-check"><input type="checkbox" ${t.checked!==false?'checked':''} onchange="updateChecked(${idx},this.checked)"></td>
     <td class="td-date">${t.date}</td>
-    <td><input class="td-date-edit" type="date" value="${escH(t.fechaContable||t.date)}" onchange="updateFechaContable('${t.id}',this.value)" title="Fecha contable editable"></td>
+    <td><input class="td-date-edit" type="date" value="${escH(t.fechaContable||t.date)}" onchange="updateFechaContable(${idx},this.value)" title="Fecha contable editable"></td>
     <td class="td-desc" title="${escH(t.description)}">${escH(t.description)}</td>
-    <td><select class="cat-select" onchange="updateCategory('${t.id}',this.value)"><option value="">— Sin categoría —</option>${catOptgroupHTML(t.category)}</select>${t.aiCategorized?'<span class="ai-badge"> ia</span>':''}</td>
+    <td><select class="cat-select" onchange="updateCategory(${idx},this.value)"><option value="">— Sin categoría —</option>${catOptgroupHTML(t.category)}</select>${t.aiCategorized?'<span class="ai-badge"> ia</span>':''}</td>
     <td><span class="bank-badge ${t.bank==='ING'?'bank-ing':'bank-sabadell'}">${t.bank} ···${t.account||'?'}</span></td>
     <td class="td-amount ${t.amount>=0?'positive':'negative'}">${t.amount>=0?'+':'−'}${Math.abs(t.amount).toFixed(2)}€</td>
-    <td><textarea class="notes-input" placeholder="Notas..." oninput="updateNotes('${t.id}',this.value);autoResizeNotes(this)">${escH(t.notes||'')}</textarea></td>
-  </tr>`).join('')+
+    <td><textarea class="notes-input" placeholder="Notas..." oninput="updateNotes(${idx},this.value);autoResizeNotes(this)">${escH(t.notes||'')}</textarea></td>
+  </tr>`;}).join('')+
   (txns.length>400?`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:16px;font-size:12px;font-style:italic">y ${txns.length-400} movimientos más — aplica filtros para acotar</td></tr>`:'')+
   (txns.length===0?`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;font-style:italic">Sin resultados con los filtros actuales</td></tr>`:'');
 }
