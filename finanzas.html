@@ -498,19 +498,22 @@ function updateNotes(idx,val){const t=S.transactions[idx];if(t){t.notes=val;mark
 function updateChecked(idx,val){const t=S.transactions[idx];if(t){t.checked=val;markDirty();const row=document.querySelector(`tr[data-idx="${idx}"]`);if(row)row.classList.toggle('unchecked-row',!val);}}
 
 // ─── MULTISELECT CATEGORY ─────────────────────────────────────────────────────
+const SIN_CAT='__sin_categoria__';
 function buildCatPanel(){
   const panel=document.getElementById('catPanel');
   if(!panel)return;
   panel.innerHTML='<div class="multisel-actions"><button onclick="clearCatFilter()">Limpiar</button><button onclick="selectAllCats()">Todas</button></div>'+
+    `<label class="multisel-item" style="font-style:italic"><input type="checkbox" value="${SIN_CAT}" ${S.filters.categories.has(SIN_CAT)?'checked':''} onchange="onCatCheck(this)">Sin categoría</label>`+
+    '<div class="multisel-sep"></div>'+
     CAT_GROUPS.map((grp,gi)=>(gi>0?'<div class="multisel-sep"></div>':'')+
       grp.map(c=>`<label class="multisel-item"><input type="checkbox" value="${escH(c)}" ${S.filters.categories.has(c)?'checked':''} onchange="onCatCheck(this)">${escH(c)}</label>`).join('')
     ).join('');
 }
 function toggleCatPanel(e){e.stopPropagation();const p=document.getElementById('catPanel');if(p){buildCatPanel();p.classList.toggle('open');document.getElementById('catMultiBtn').classList.toggle('active',p.classList.contains('open'));}}
 function closeCatPanel(){const p=document.getElementById('catPanel');if(p){p.classList.remove('open');document.getElementById('catMultiBtn')?.classList.remove('active');}}
-function onCatCheck(cb){if(cb.checked)S.filters.categories.add(cb.value);else S.filters.categories.delete(cb.value);updateCatBtnLabel();renderTable();renderStats();}
-function clearCatFilter(){S.filters.categories.clear();buildCatPanel();updateCatBtnLabel();renderTable();renderStats();}
-function selectAllCats(){S.filters.categories.clear();buildCatPanel();updateCatBtnLabel();renderTable();renderStats();}
+function onCatCheck(cb){if(cb.checked)S.filters.categories.add(cb.value);else S.filters.categories.delete(cb.value);updateCatBtnLabel();renderTable();renderStats();renderCharts(filtered());}
+function clearCatFilter(){S.filters.categories.clear();buildCatPanel();updateCatBtnLabel();renderTable();renderStats();renderCharts(filtered());}
+function selectAllCats(){S.filters.categories.clear();buildCatPanel();updateCatBtnLabel();renderTable();renderStats();renderCharts(filtered());}
 function updateCatBtnLabel(){const btn=document.getElementById('catMultiBtn');if(!btn)return;const n=S.filters.categories.size;btn.textContent=n===0?'Todas las categorías':`Categorías (${n}) ▾`;}
 
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
@@ -531,6 +534,7 @@ function readFilters(){
   S.filters.dateFrom=document.getElementById('filterDateFrom')?.value||'';
   S.filters.dateTo=document.getElementById('filterDateTo')?.value||'';
   S.filters.showUnchecked=document.getElementById('showUnchecked')?.checked!==false;
+  S.filters.onlyEmptyNotes=document.getElementById('onlyEmptyNotes')?.checked===true;
 }
 
 function onFilterChange(){readFilters();renderTable();renderStats();renderCharts(filtered());}
@@ -540,10 +544,14 @@ function filtered(){
   return S.transactions.filter(t=>{
     if(S.filters.month!=='all'&&!t.date.startsWith(S.filters.month))return false;
     if(S.filters.bank!=='all'&&`${t.bank}_${t.account}`!==S.filters.bank&&t.bank!==S.filters.bank)return false;
-    if(S.filters.categories.size>0&&!S.filters.categories.has(t.category))return false;
+    if(S.filters.categories.size>0){
+      const catMatch=S.filters.categories.has(SIN_CAT)&&!t.category?true:S.filters.categories.has(t.category);
+      if(!catMatch)return false;
+    }
     if(S.filters.dateFrom&&t.date<S.filters.dateFrom)return false;
     if(S.filters.dateTo&&t.date>S.filters.dateTo)return false;
     if(!S.filters.showUnchecked&&!t.checked)return false;
+    if(S.filters.onlyEmptyNotes&&(t.notes||'').trim()!=='')return false;
     if(S.filters.search){const q=S.filters.search.toLowerCase();if(!t.description.toLowerCase().includes(q)&&!t.category.toLowerCase().includes(q)&&!(t.notes||'').toLowerCase().includes(q))return false;}
     return true;
   });
@@ -667,6 +675,10 @@ function renderAll(){
       <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
         <input type="checkbox" id="showUnchecked" ${S.filters.showUnchecked!==false?'checked':''} onchange="onFilterChange()" style="accent-color:var(--text);width:14px;height:14px;">
         Mostrar desmarcados
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2);cursor:pointer;">
+        <input type="checkbox" id="onlyEmptyNotes" ${S.filters.onlyEmptyNotes?'checked':''} onchange="onFilterChange()" style="accent-color:var(--text);width:14px;height:14px;">
+        Solo sin nota
       </label>
       <span id="filterCount" class="filter-count"></span>
     </div>
