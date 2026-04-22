@@ -287,7 +287,7 @@ async function ghLoad(){
     if(!res.ok)throw new Error(`GitHub ${res.status}`);
     const json=await res.json();
     S.dataFileSha=json.sha;
-    const decoded=JSON.parse(atob(json.content.replace(/\n/g,'')));
+    const decoded=JSON.parse(decodeURIComponent(escape(atob(json.content.replace(/\n/g,'')))));
     S.transactions=decoded.transactions||[];
     setSyncStatus('ok',`Sincronizado · ${S.transactions.length} movimientos`);
     buildMonthFilter();updatePageTitle();renderAll();
