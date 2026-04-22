@@ -331,7 +331,7 @@ function toast(msg,type='success'){const t=document.createElement('div');t.class
 function openSettings(){document.getElementById('cfgGhUser').value=S.ghUser;document.getElementById('cfgGhRepo').value=S.ghRepo;document.getElementById('cfgGhToken').value=S.ghToken;document.getElementById('cfgAnthKey').value=S.anthKey;document.getElementById('settingsModal').classList.add('open');}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
 async function saveSettings(){S.ghUser=document.getElementById('cfgGhUser').value.trim();S.ghRepo=document.getElementById('cfgGhRepo').value.trim();S.ghToken=document.getElementById('cfgGhToken').value.trim();S.anthKey=document.getElementById('cfgAnthKey').value.trim();saveConfig();closeSettings();await ghLoad();}
-function clearAllData(){if(!confirm('¿Seguro que quieres borrar TODOS los datos?'))return;S.transactions=[];S.dataFileSha=null;ghSave();buildMonthFilter();updatePageTitle();renderAll();closeSettings();toast('Datos borrados');}
+function clearAllData(){if(!confirm('¿Seguro que quieres borrar TODOS los datos?'))return;S.transactions=[];ghSave();buildMonthFilter();updatePageTitle();renderAll();closeSettings();toast('Datos borrados');}
 
 // ─── PARSING ──────────────────────────────────────────────────────────────────
 function detectBank(rows){const flat=rows.slice(0,12).flat().map(c=>String(c||'').toLowerCase()).join(' ');if(flat.includes('categoría')||flat.includes('subcategoría'))return'ING';if(flat.includes('f. operativa')||flat.includes('concepto'))return'SABADELL';return null;}
