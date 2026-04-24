@@ -296,6 +296,7 @@ async function ghLoad(){
 
 // ─── DIRTY STATE & MANUAL SAVE ───────────────────────────────────────────────
 S.dirty=false;
+S.selected=new Set();
 function markDirty(){
   S.dirty=true;
   const btn=document.getElementById('saveBtn');
@@ -411,10 +412,38 @@ function parseAmount(raw){
 
 function parseING(rows){
   const acct=extractAccount(rows,'ING');
-  let hi=-1;for(let i=0;i<rows.length;i++){const r=rows[i].map(c=>String(c||'').toUpperCase());if(r.some(c=>c.includes('F. VALOR'))){hi=i;break;}}
-  if(hi<0)return[];const txns=[];
-  for(let i=hi+1;i<rows.length;i++){const r=rows[i];if(!r[0]&&!r[3])continue;const amt=parseAmount(r[5]);if(amt===0&&!r[3])continue;
-    txns.push({id:'',date:parseDate(r[0]),fechaContable:parseDate(r[0]),category:String(r[1]||'').trim(),subcategory:String(r[2]||'').trim(),description:String(r[3]||'').trim(),amount:amt,balance:parseAmount(r[6]),bank:'ING',account:acct,aiCategorized:false,notes:'',checked:true});}
+  let hi=-1;
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i].map(c=>String(c||'').toUpperCase().trim());
+    if(r.some(c=>c.includes('F. VALOR')||c.includes('F.VALOR'))){hi=i;break;}
+  }
+  if(hi<0)return[];
+  // Auto-detect column indices from header
+  const hdr=rows[hi].map(c=>String(c||'').toUpperCase().trim());
+  const iDate=hdr.findIndex(c=>c.includes('F. VALOR')||c.includes('F.VALOR'));
+  const iCat=hdr.findIndex(c=>c.includes('CATEGOR'));
+  const iSub=hdr.findIndex(c=>c.includes('SUBCATEGOR'));
+  const iDesc=hdr.findIndex(c=>c.includes('DESCRIP'));
+  const iAmt=hdr.findIndex(c=>c.includes('IMPORTE'));
+  const iSaldo=hdr.findIndex(c=>c.includes('SALDO'));
+  const txns=[];
+  for(let i=hi+1;i<rows.length;i++){
+    const r=rows[i];
+    const dateVal=iDate>=0?r[iDate]:r[0];
+    const descVal=iDesc>=0?r[iDesc]:r[3];
+    if(!dateVal&&!descVal)continue;
+    const amt=parseAmount(iAmt>=0?r[iAmt]:r[5]);
+    if(amt===0&&!descVal)continue;
+    txns.push({id:'',
+      date:parseDate(dateVal),
+      fechaContable:parseDate(dateVal),
+      category:String(iCat>=0?r[iCat]:'').trim(),
+      subcategory:String(iSub>=0?r[iSub]:'').trim(),
+      description:String(descVal||'').trim(),
+      amount:amt,
+      balance:parseAmount(iSaldo>=0?r[iSaldo]:r[6]),
+      bank:'ING',account:acct,aiCategorized:false,notes:'',checked:true});
+  }
   return txns;
 }
 
@@ -496,6 +525,36 @@ function updateCategory(idx,val){const t=S.transactions[idx];if(t){t.category=va
 function updateFechaContable(idx,val){const t=S.transactions[idx];if(t){t.fechaContable=val;markDirty();}}
 function updateNotes(idx,val){const t=S.transactions[idx];if(t){t.notes=val;markDirty();}}
 function updateChecked(idx,val){const t=S.transactions[idx];if(t){t.checked=val;markDirty();const row=document.querySelector(`tr[data-idx="${idx}"]`);if(row)row.classList.toggle('unchecked-row',!val);}}
+
+// ─── SELECTION & DELETE ───────────────────────────────────────────────────────
+function toggleSelect(idx,val){
+  if(val)S.selected.add(idx);else S.selected.delete(idx);
+  updateDeleteBtn();
+}
+function toggleSelectAll(cb){
+  const txns=filtered();
+  txns.forEach(t=>{const idx=S.transactions.indexOf(t);if(cb.checked)S.selected.add(idx);else S.selected.delete(idx);});
+  document.querySelectorAll('.sel-cb').forEach(el=>el.checked=cb.checked);
+  updateDeleteBtn();
+}
+function updateDeleteBtn(){
+  const btn=document.getElementById('deleteBtn');
+  if(!btn)return;
+  const n=S.selected.size;
+  btn.style.display=n>0?'inline-flex':'none';
+  btn.textContent=`✕ Borrar seleccionados (${n})`;
+}
+async function deleteSelected(){
+  if(!S.selected.size)return;
+  if(!confirm(`¿Borrar ${S.selected.size} movimiento${S.selected.size!==1?'s':''}? Esta acción no se puede deshacer.`))return;
+  // Remove by index descending to avoid index shifting
+  const toDelete=[...S.selected].sort((a,b)=>b-a);
+  toDelete.forEach(idx=>S.transactions.splice(idx,1));
+  S.selected.clear();
+  await ghSave();
+  buildMonthFilter();renderAll();
+  toast(`${toDelete.length} movimiento${toDelete.length!==1?'s':''} eliminado${toDelete.length!==1?'s':''}`);
+}
 
 // ─── MULTISELECT CATEGORY ─────────────────────────────────────────────────────
 const SIN_CAT='__sin_categoria__';
@@ -611,9 +670,15 @@ function renderTable(){
   if(!tbodyEl)return;
   const txns=filtered();
   if(countEl)countEl.textContent=`${txns.length} resultado${txns.length!==1?'s':''}`;
+  // Reset select-all checkbox
+  const selAllCb=document.getElementById('selectAllCb');
+  if(selAllCb)selAllCb.checked=false;
+
   tbodyEl.innerHTML=txns.slice(0,400).map(t=>{
     const idx=S.transactions.indexOf(t);
+    const isSel=S.selected.has(idx);
     return`<tr data-idx="${idx}" class="${t.checked===false?'unchecked-row':''}">
+    <td class="td-check"><input type="checkbox" class="sel-cb" ${isSel?'checked':''} onchange="toggleSelect(${idx},this.checked)" style="accent-color:var(--red)"></td>
     <td class="td-check"><input type="checkbox" ${t.checked!==false?'checked':''} onchange="updateChecked(${idx},this.checked)"></td>
     <td class="td-date">${t.date}</td>
     <td><input class="td-date-edit" type="date" value="${escH(t.fechaContable||t.date)}" onchange="updateFechaContable(${idx},this.value)" title="Fecha contable editable"></td>
@@ -686,11 +751,13 @@ function renderAll(){
     <div class="table-card">
       <div class="table-toolbar">
         <button class="btn btn-sm" id="saveBtn" onclick="manualSave()" style="color:var(--muted)">✓ Guardado</button>
+        <button class="btn btn-sm btn-danger" id="deleteBtn" onclick="deleteSelected()" style="display:none">✕ Borrar seleccionados</button>
         <button class="btn btn-sm" onclick="exportToExcel()">↓ Exportar a Excel</button>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
+            <th class="th-center"><input type="checkbox" id="selectAllCb" onchange="toggleSelectAll(this)" style="accent-color:var(--text);width:14px;height:14px;" title="Seleccionar todos"></th>
             <th class="th-center">Check</th>
             <th>F. Valor</th>
             <th>F. Contable</th>
