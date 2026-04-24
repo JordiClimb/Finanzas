@@ -482,28 +482,35 @@ function makeid(t){
 
 // ─── FILE HANDLING ────────────────────────────────────────────────────────────
 async function handleFiles(files){
-  let totalAdded=0;
+  let totalAdded=0, totalDup=0, totalParsed=0;
   for(const file of files){
     const buf=await file.arrayBuffer();
-    const wb=XLSX.read(buf,{type:'array',cellDates:false,raw:false});
+    const wb=XLSX.read(buf,{type:'array',cellDates:false,raw:true}); // raw:true consistent with sheet_to_json
     const ws=wb.Sheets[wb.SheetNames[0]];
     const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
     const bank=detectBank(rows);
     if(!bank){toast(`No se reconoció el formato de "${file.name}"`,'error');continue;}
     const parsed=bank==='ING'?parseING(rows):parseSabadell(rows);
     if(!parsed.length){toast(`Sin movimientos en "${file.name}"`,'error');continue;}
+    totalParsed+=parsed.length;
     const existing=new Set(S.transactions.map(t=>t.id));
-    let added=0;
-    for(const t of parsed){t.id=makeid(t);if(!existing.has(t.id)){S.transactions.push(t);added++;}}
-    totalAdded+=added;
-    toast(`${bank} ···${parsed[0]?.account||''}: ${added} movimientos`);
+    let added=0,dup=0;
+    for(const t of parsed){
+      t.id=makeid(t);
+      if(!existing.has(t.id)){S.transactions.push(t);added++;existing.add(t.id);}
+      else dup++;
+    }
+    totalAdded+=added;totalDup+=dup;
+    toast(`${bank} ···${parsed[0]?.account||''}: ${added} nuevos · ${dup} duplicados · ${parsed.length} en fichero`);
   }
   if(totalAdded>0){
     S.transactions.sort((a,b)=>b.date.localeCompare(a.date));
     await ghSave();buildMonthFilter();updatePageTitle();renderAll();
     const uncat=S.transactions.filter(t=>t.bank==='SABADELL'&&!t.category);
     if(uncat.length&&S.anthKey)await categorizeWithAI(uncat);
-    else if(uncat.length&&!S.anthKey)toast(`${uncat.length} movimientos sin categoría. Añade API Key en Configuración.`,'error');
+    else if(uncat.length&&!S.anthKey)toast(`${uncat.length} movimientos sin categoría. Añade API Key.`,'error');
+  }else if(totalParsed>0&&totalDup===totalParsed){
+    toast(`Todos los ${totalParsed} movimientos ya existen en la base de datos`,'error');
   }
 }
 
