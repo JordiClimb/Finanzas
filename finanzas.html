@@ -719,11 +719,10 @@ function renderTable(){
     <td><select class="cat-select" onchange="updateCategory(${idx},this.value)"><option value="">— Sin categoría —</option>${catOptgroupHTML(t.category)}</select>${t.aiCategorized?'<span class="ai-badge"> ia</span>':''}</td>
     <td><span class="bank-badge ${t.bank==='ING'?'bank-ing':'bank-sabadell'}">${t.bank} ···${t.account||'?'}</span></td>
     <td class="td-amount ${t.amount>=0?'positive':'negative'}">${t.amount>=0?'+':'−'}${Math.abs(t.amount).toFixed(2)}€</td>
-    <td class="td-amount" style="color:var(--muted2)">${t.balance!=null&&t.balance!==''?t.balance.toFixed(2)+'€':'—'}</td>
     <td><textarea class="notes-input" placeholder="Notas..." oninput="updateNotes(${idx},this.value);autoResizeNotes(this)">${escH(t.notes||'')}</textarea></td>
   </tr>`;}).join('')+
-  (txns.length>400?`<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:16px;font-size:12px;font-style:italic">y ${txns.length-400} movimientos más — aplica filtros para acotar</td></tr>`:'')+
-  (txns.length===0?`<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;font-style:italic">Sin resultados con los filtros actuales</td></tr>`:'');
+  (txns.length>400?`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px;font-size:12px;font-style:italic">y ${txns.length-400} movimientos más — aplica filtros para acotar</td></tr>`:'')+
+  (txns.length===0?`<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px;font-size:13px;font-style:italic">Sin resultados con los filtros actuales</td></tr>`:'');
 }
 
 // ─── RENDER ALL ───────────────────────────────────────────────────────────────
@@ -799,7 +798,6 @@ function renderAll(){
             <th>Categoría</th>
             <th>Cuenta</th>
             <th class="th-right">Importe</th>
-            <th class="th-right">Saldo</th>
             <th>Notas</th>
           </tr></thead>
           <tbody id="tableBody"></tbody>
