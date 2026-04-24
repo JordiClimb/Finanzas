@@ -471,7 +471,14 @@ function parseSabadell(rows){
   return txns;
 }
 
-function makeid(t){return btoa(encodeURIComponent(`${t.date}|${t.description}|${t.amount}|${t.bank}|${t.account||''}`)).replace(/[^a-zA-Z0-9]/g,'').slice(0,24);}
+function makeid(t){
+  // Include balance to distinguish recurring transactions with same description+amount
+  const raw=`${t.date}|${t.description}|${t.amount}|${t.balance}|${t.bank}|${t.account||''}`;
+  // Simple hash — no truncation to avoid collisions
+  let h=0;
+  for(let i=0;i<raw.length;i++){h=Math.imul(31,h)+raw.charCodeAt(i)|0;}
+  return`${t.bank}_${t.account||'x'}_${t.date}_${Math.abs(h).toString(36)}`;
+}
 
 // ─── FILE HANDLING ────────────────────────────────────────────────────────────
 async function handleFiles(files){
