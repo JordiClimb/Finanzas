@@ -472,12 +472,19 @@ function parseSabadell(rows){
 }
 
 function makeid(t){
-  // Include balance to distinguish recurring transactions with same description+amount
-  const raw=`${t.date}|${t.description}|${t.amount}|${t.balance}|${t.bank}|${t.account||''}`;
-  // Simple hash — no truncation to avoid collisions
+  const raw=`${t.date}|${t.bank}|${t.account||''}|${t.amount}|${t.description}`;
   let h=0;
   for(let i=0;i<raw.length;i++){h=Math.imul(31,h)+raw.charCodeAt(i)|0;}
-  return`${t.bank}_${t.account||'x'}_${t.date}_${Math.abs(h).toString(36)}`;
+  return`${t.bank}_${t.account||'x'}_${t.date}_${t.amount}_${Math.abs(h).toString(36)}`;
+}
+
+// Fingerprint for field-based dedup — independent of ID format
+function fingerprint(t){
+  return`${t.date}|${t.bank}|${t.account||''}|${t.amount}|${t.description}`;
+}
+
+function buildFingerprintSet(){
+  return new Set(S.transactions.map(fingerprint));
 }
 
 // ─── FILE HANDLING ────────────────────────────────────────────────────────────
@@ -494,11 +501,13 @@ async function handleFiles(files){
     if(!parsed.length){toast(`Sin movimientos en "${file.name}"`,'error');continue;}
     totalParsed+=parsed.length;
     const existing=new Set(S.transactions.map(t=>t.id));
+    const existingFP=buildFingerprintSet();
     let added=0,dup=0;
     for(const t of parsed){
       t.id=makeid(t);
-      if(!existing.has(t.id)){S.transactions.push(t);added++;existing.add(t.id);}
-      else dup++;
+      // Match by ID (new format) OR by fingerprint (catches old-format IDs)
+      if(existing.has(t.id)||existingFP.has(fingerprint(t))){dup++;}
+      else{S.transactions.push(t);added++;existing.add(t.id);existingFP.add(fingerprint(t));}
     }
     totalAdded+=added;totalDup+=dup;
     toast(`${bank} ···${parsed[0]?.account||''}: ${added} nuevos · ${dup} duplicados · ${parsed.length} en fichero`);
